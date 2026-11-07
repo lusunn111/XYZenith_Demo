@@ -39,6 +39,26 @@
 
 前两项来自 [SGLang H3 部署文档](https://github.com/sgl-project/sglang/blob/v0.5.23/docs/cookbook/diffusion/MiniMax/MiniMax-H3.mdx) 和 [官方部署配置源码](https://github.com/sgl-project/sglang/blob/v0.5.23/docs/src/snippets/configs/MiniMaxAI/minimax-h3.jsx)。社区记录来自 [Discussion #34426](https://github.com/sgl-project/sglang/discussions/34426)。这些结果保留原有硬件和生成规格，本项目尚无 A100 或 L20 实测生成耗时。
 
+## 四步蒸馏与 480p 补查
+
+2026-11-07 补查确认 H3 已有公开的四步蒸馏权重，前述原版运行记录仅覆盖基础模型路线。SGLang v0.5.23 官方文档已收录 LightX2V 四步 LoRA（低秩适配权重）配置，可作为本项目下一次推理验证的候选。
+
+表 3 已核实的四步发布
+
+| 发布者与权重 | 能力与接入依据 |
+| --- | --- |
+| `lightx2v/Minimax-h3-Turbo` | 基于 H3 的 FL2VA/T2VA 四步 LoRA。SGLang v0.5.23 固定示例文件为 `minimax_h3_fl2v_turbo_4step_v0.1.safetensors`，约 1.38 GB，`lora_scale=1.0`、`lora_alpha=8`、`num_inference_steps=4`。仓库另有更新的 768p 文件，参数应逐文件核对。[SGLang 配方](https://github.com/sgl-project/sglang/blob/v0.5.23/docs/cookbook/diffusion/MiniMax/MiniMax-H3.mdx#5-lora-recipes) · [权重目录](https://huggingface.co/lightx2v/Minimax-h3-Turbo/tree/30f485ed874aa44c8183348ad361c5eabad318da) |
+| `FastVideo/FastVideo-FastH3-4-step-Preview-v1-Dense-DataFree` | 四次主干前向的文生音视频模型，原生 FastVideo 示例使用 `--steps 5` 表示含终点的五个调度点。另有采用 VSA（视频稀疏注意力）的版本，需要对应计算内核。[Dense 模型卡](https://huggingface.co/FastVideo/FastVideo-FastH3-4-step-Preview-v1-Dense-DataFree) · [VSA 模型卡](https://huggingface.co/FastVideo/FastVideo-FastH3-4-step-Preview-v1-VSA-DataFree) |
+| `taobao-content-ai/MiniMax-H3-PTD-LoRAs` | 提供四步与八步 PTD（参数化轨迹蒸馏）LoRA，模型卡针对 Ref2VA 参考条件生成。当前网页的纯文本请求需要优先选择对应 T2VA 权重。[模型卡](https://huggingface.co/taobao-content-ai/MiniMax-H3-PTD-LoRAs) |
+
+LightX2V v0.1 的蒸馏训练分辨率为 544p，视频/音频 shift（采样时间偏移）为 12/3。其发布者代码将 `16:9`、`0.4` 百万像素映射到 `864×480`。据此可以构建 480p、四步候选请求，画质与双 A100 资源占用待实测。768p v1.0 文件采用 6/3，使用该文件时须同步调整调度参数。[训练规格](https://github.com/ModelTC/Minimax-H3-Turbo#1-model-specs) · [分辨率源码](https://github.com/ModelTC/Minimax-H3-Turbo/blob/main/resolution_util.py)
+
+SGLang v0.5.23 的 `num_inference_steps=4` 执行四次去噪，源码构建五个 sigma 调度点。旧版框架与 FastVideo 示例存在按调度点计数的接口，回退运行环境时需检查实际前向次数。[调度源码](https://github.com/sgl-project/sglang/blob/v0.5.23/python/sglang/multimodal_gen/runtime/pipelines_core/stages/model_specific_stages/minimax_h3/time_request.py)
+
+480p 四步已有社区运行记录。Sogni Labs 的单 RTX 5090 32 GB 图生视频测试采用 480×640、362 帧、24 fps、15.08 秒并生成音频，LightX2V 四步 FP8 路线热运行约 67 秒，FastH3 四步 INT8 路线约 55 秒。计时覆盖任务开始至 MP4 回传，排队和模型加载在该口径之外。这些结果对应其量化、工作流及硬件，双 A100 和 L20 的五秒视频耗时仍待验证。[测量者原文](https://blog.sogni.ai/blogs/fasth3-minimax-h3/)
+
+四步蒸馏减少重复去噪计算，480p 降低激活与解码负担。基础主干、文本编码器和 VAE 的权重加载仍需纳入容量预算，本项目的百兆共享盘读取条件也需要纳入实际测量。四步方案现为已核实发布、待部署验证的候选。
+
 ## 给 L20 部署同学的接口与步骤
 
 L20 的完整显存规格为 48 GB。部署前收集每台机器卡数、主机可用内存、本地存储容量，以及 `nvidia-smi topo -m` 和跨节点网络信息。优先在一台具备足够资源的机器建立一个推理实例。同机八张 L20 可作为容量更充足的候选，四张配置仍需验证峰值显存。实际参数依据该机器拓扑确定。[NVIDIA L20 显存规格](https://docs.nvidia.com/ai-enterprise/release-8/latest/infra-software/vgpu/reference/ada-lovelace.html)
