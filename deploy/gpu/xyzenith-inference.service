@@ -1,0 +1,20 @@
+[Unit]
+Description=XYZenith MiniMax-H3 inference
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=3
+
+[Service]
+Type=simple
+WorkingDirectory=%h/XYZenith_Demo
+Environment=CUDA_VISIBLE_DEVICES=0,1
+EnvironmentFile=-%h/.config/xyzenith/inference.env
+ExecStart=/bin/bash %h/XYZenith_Demo/inference/serve.sh
+Restart=on-failure
+RestartSec=30
+TimeoutStopSec=60
+KillSignal=SIGTERM
+
+[Install]
+WantedBy=default.target

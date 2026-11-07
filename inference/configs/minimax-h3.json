@@ -1,0 +1,18 @@
+{
+  "model_id": "MiniMaxAI/MiniMax-H3",
+  "revision": "42ed227ee7df40d41602854ae760620d6eb651fe",
+  "variant": "fl2va",
+  "task": "t2va",
+  "target": {
+    "short_edge": 768,
+    "aspect_ratio": "16:9",
+    "duration_seconds": 5
+  },
+  "sglang_preferred_version": "0.5.23",
+  "sglang_fallback_version": "0.5.19",
+  "fallback_cuda": "12.9",
+  "profile_status": "pending_gpu_validation",
+  "runtime_status": "installation_incomplete",
+  "gpu_validation_status": "not_run",
+  "full_checksum_status": "incomplete"
+}
