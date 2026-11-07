@@ -1,5 +1,7 @@
 # Demo 实现与部署
 
+2026-11-07，用户明确要求将仓库改为公开。已修改 GitHub 可见性，并通过 API 核实 `visibility=public`、`private=false`。README 与接入说明已同步更新。
+
 用户批准实施完整计划。页面按组内分享链接直接访问，单任务执行、最多五个等待位。用户选择 VPS 缓存保留 24 小时、上限 2 GiB，允许自动回收本项目缓存，A100 原始输出保留。
 
 已实现 React/TypeScript/Vite 中文深色工作台和 FastAPI/SQLite 后端。包含任务去重、持久状态、上游任务映射、提交结果不明时暂停队列及人工核对、视频检查与原子保存、浏览器范围请求、缓存回收及发送中媒体保护。依赖分别由 package-lock.json 和 requirements.lock.txt 锁定。
