@@ -10,6 +10,16 @@ const stateLabels: Record<JobStatus, string> = {
   succeeded: "生成完成",
   failed: "生成失败",
 };
+const generationStages = ["等待执行", "生成音视频", "传输结果"];
+const stageIndex: Record<JobStatus, number> = {
+  queued: 0,
+  submitting: 0,
+  submission_unknown: -1,
+  running: 1,
+  transferring: 2,
+  succeeded: 3,
+  failed: -1,
+};
 
 export function formatSeconds(seconds: number | null | undefined): string {
   if (seconds === null || seconds === undefined || !Number.isFinite(seconds))
@@ -26,6 +36,9 @@ interface Props {
   playableSeconds: number | null;
   onPlayable: () => void;
   onNewTask: () => void;
+  inspirationPrompt: string;
+  onUseInspiration: () => void;
+  canUseInspiration: boolean;
 }
 
 export default function ResultPanel({
@@ -36,27 +49,55 @@ export default function ResultPanel({
   playableSeconds,
   onPlayable,
   onNewTask,
+  inspirationPrompt,
+  onUseInspiration,
+  canUseInspiration,
 }: Props) {
   const [playbackError, setPlaybackError] = useState(false);
   const active = job !== null && !["succeeded", "failed"].includes(job.status);
+  const busy = loading || (active && job?.status !== "submission_unknown");
   const hasVideo = Boolean(job?.video_url && !job.media_expired);
   const title = job ? stateLabels[job.status] : "视频预览";
   const progress = job?.progress;
+  const showInspiration = !job && !loading && !error;
 
   return (
     <section className="result-panel" aria-labelledby="result-heading">
       <div className="section-heading">
-        <h2 id="result-heading">生成结果</h2>
+        <h2 id="result-heading">{showInspiration ? "预览画布" : "生成结果"}</h2>
         {job || error ? (
           <button className="text-button" type="button" onClick={onNewTask}>
             新建任务 <span aria-hidden="true">↗</span>
           </button>
         ) : (
-          <span className="muted">视频与声音同步生成</span>
+          <span className="muted">从一帧灵感开始</span>
         )}
       </div>
-      <div className={`preview ${active ? "preview-active" : ""}`}>
-        {hasVideo && job ? (
+      <div
+        className={`preview ${active ? "preview-active" : ""} ${showInspiration ? "preview-inspiration" : ""}`}
+      >
+        {showInspiration ? (
+          <>
+            <img
+              className="inspiration-image"
+              src="/images/coastal-observatory.jpg"
+              width={1500}
+              height={844}
+              alt="暮色海岸上的混凝土圆环建筑，夕阳穿过圆环，远处海雾层叠"
+              fetchPriority="high"
+            />
+            <div className="inspiration-overlay" />
+            <span className="image-label">
+              <i aria-hidden="true" />
+              灵感预览 · 静态图
+            </span>
+            <div className="inspiration-title">
+              <span>海岸建筑 / 电影感航拍</span>
+              <h3>潮汐之间</h3>
+            </div>
+            <span className="image-credit">AI 生成灵感图</span>
+          </>
+        ) : hasVideo && job ? (
           <>
             <video
               key={job.video_url}
@@ -80,22 +121,22 @@ export default function ResultPanel({
         ) : (
           <div className="preview-placeholder">
             <div
-              className={`frame-symbol ${active || loading ? "frame-symbol-working" : ""}`}
+              className={`frame-symbol ${busy ? "frame-symbol-working" : ""}`}
               aria-hidden="true"
             >
               <i />
               <i />
               <i />
-              <i />
-              <span>
-                {active || loading ? <b className="activity-dot" /> : "▶"}
-              </span>
+              <span>{busy ? "✦" : "◇"}</span>
             </div>
-            <h3>{loading && !job ? "正在恢复任务" : title}</h3>
+            <h3>
+              {error && !job
+                ? "暂时无法读取任务"
+                : loading && !job
+                  ? "正在恢复任务"
+                  : title}
+            </h3>
             <p>
-              {!job && !loading
-                ? "在左侧描述画面，生成结果会显示在这里。"
-                : null}
               {job?.status === "queued"
                 ? `前方等待 ${Math.max(0, (job.queue_position ?? 1) - 1)} 个任务，轮到后会自动开始。`
                 : null}
@@ -136,9 +177,6 @@ export default function ResultPanel({
             ) : null}
           </div>
         )}
-        <div className="preview-corner" aria-hidden="true">
-          16∶9
-        </div>
       </div>
       {error ? (
         <p className="notice notice-error" role="alert">
@@ -147,8 +185,30 @@ export default function ResultPanel({
       ) : null}
       {job ? (
         <div className="result-details">
+          {active && stageIndex[job.status] >= 0 ? (
+            <ol className="generation-stages" aria-label="任务阶段">
+              {generationStages.map((stage, index) => (
+                <li
+                  key={stage}
+                  className={
+                    index < stageIndex[job.status] ? "stage-complete" : ""
+                  }
+                  aria-current={
+                    index === stageIndex[job.status] ? "step" : undefined
+                  }
+                >
+                  <i aria-hidden="true" />
+                  {stage}
+                </li>
+              ))}
+            </ol>
+          ) : null}
+          <div className="job-reference">
+            <span>任务编号</span>
+            <code>{job.id}</code>
+          </div>
           <div className="result-status-row">
-            <span className={`job-state state-${job.status}`}>
+            <span className={`job-state state-${job.status}`} role="status">
               <i aria-hidden="true" />
               {job.media_expired ? "视频缓存已过期" : title}
             </span>
@@ -218,12 +278,22 @@ export default function ResultPanel({
             <p>生成服务耗时包含推理服务处理及约 2 秒状态查询间隔的观测误差。</p>
           </details>
         </div>
-      ) : (
-        <div className="empty-result-footer">
-          <span>MiniMax-H3</span>
-          <span>结果生成后展示实际耗时</span>
+      ) : showInspiration ? (
+        <div className="inspiration-caption">
+          <div className="inspiration-caption-heading">
+            <h3>给想象一个起点</h3>
+            <button
+              className="text-button"
+              type="button"
+              onClick={onUseInspiration}
+              disabled={!canUseInspiration}
+            >
+              使用这段描述 <span aria-hidden="true">↗</span>
+            </button>
+          </div>
+          <p>{inspirationPrompt}</p>
         </div>
-      )}
+      ) : null}
     </section>
   );
 }

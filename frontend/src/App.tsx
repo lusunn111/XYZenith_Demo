@@ -10,6 +10,23 @@ import {
 import ResultPanel from "./ResultPanel";
 
 const pendingKey = "xyzenith.pending.v1";
+const promptExamples = [
+  {
+    label: "海岸建筑",
+    prompt:
+      "暮色中的荒凉海岸，巨大的混凝土圆环矗立在悬崖上。镜头缓缓掠过深青色海面，穿过薄雾向圆环推进，暖金色夕阳从环中透出，海浪轻拍礁石，电影感航拍。",
+  },
+  {
+    label: "雨夜街景",
+    prompt:
+      "雨后的城市深夜，暖色霓虹倒映在湿润的街道上。一位撑着透明雨伞的行人走过画面，镜头低角度缓慢跟随。远处传来电车声，近处是雨滴落在伞面的细碎声响，电影感长镜头。",
+  },
+  {
+    label: "微观世界",
+    prompt:
+      "清晨的森林，一颗晶莹露珠停在苔藓叶尖，映出周围的绿色世界。微距镜头缓慢推近，一只小瓢虫从叶片后走来，露珠轻轻滑落。柔和逆光，浅景深，伴随清脆鸟鸣。",
+  },
+];
 
 function readPending(): CreateJob | null {
   try {
@@ -74,6 +91,8 @@ export default function App() {
   const submitLock = useRef(false);
   const postController = useRef<AbortController | null>(null);
   const active = Boolean(job && !isFinished(job));
+  const inputLocked = submitting || Boolean(pending) || Boolean(jobId);
+  const model = health?.model;
   const online = health?.inference.status === "online" && !healthError;
   const queueFull = Boolean(
     health && health.queue.waiting >= health.queue.capacity,
@@ -255,7 +274,7 @@ export default function App() {
     setPlayableSeconds(null);
     firstSubmission.current = null;
     updateJobUrl(null);
-    document.getElementById("prompt")?.focus();
+    requestAnimationFrame(() => document.getElementById("prompt")?.focus());
   }
 
   function onPlayable() {
@@ -267,6 +286,13 @@ export default function App() {
     )
       return;
     setPlayableSeconds((performance.now() - measurement.start) / 1000);
+  }
+
+  function usePrompt(value: string) {
+    if (inputLocked) return;
+    setPrompt(value);
+    setSubmitError(null);
+    document.getElementById("prompt")?.focus();
   }
 
   const elapsed = job
@@ -284,28 +310,53 @@ export default function App() {
 
   return (
     <div className="app-shell">
+      <a className="skip-link" href="#prompt">
+        跳到提示词输入
+      </a>
       <header className="site-header">
-        <a className="brand" href="/" aria-label="XYZenith 首页">
-          <span className="brand-mark" aria-hidden="true">
-            X
-          </span>
-          <span>XYZenith</span>
-        </a>
-        <div
-          className={`service-status ${online ? "is-online" : ""}`}
-          role="status"
-        >
-          <i aria-hidden="true" />
-          {healthLabel}
+        <div className="header-left">
+          <a className="brand" href="/" aria-label="XYZenith 首页">
+            <span className="brand-mark" aria-hidden="true">
+              <i />
+              <i />
+            </span>
+            <span>
+              XYZenith<span className="brand-dot">.</span>
+            </span>
+          </a>
+          <span className="header-divider" aria-hidden="true" />
+          <span className="workspace-nav">创作台</span>
+        </div>
+        <div className="header-right">
+          <div
+            className={`service-status ${online ? "is-online" : ""}`}
+            role="status"
+          >
+            <i aria-hidden="true" />
+            {healthLabel}
+          </div>
+          <a
+            className="repository-link"
+            href="https://github.com/lusunn111/XYZenith_Demo"
+            target="_blank"
+            rel="noreferrer"
+          >
+            GitHub <span aria-hidden="true">↗</span>
+          </a>
         </div>
       </header>
       <main>
         <div className="page-heading">
           <div>
-            <p className="eyebrow">MiniMax-H3</p>
-            <h1>视频生成</h1>
+            <h1>
+              把想象，<span>变成影像。</span>
+            </h1>
+            <p>描述画面、镜头与声音，开始创作你的下一幕。</p>
           </div>
-          <span className="workspace-label">生成工作台</span>
+          <span className="creation-mode">
+            <i aria-hidden="true" />
+            文字生成音视频
+          </span>
         </div>
         {health?.mock ? (
           <div className="notice mock-notice" role="status">
@@ -315,38 +366,81 @@ export default function App() {
         <div className="workspace">
           <section className="composer" aria-labelledby="compose-heading">
             <div className="section-heading">
-              <h2 id="compose-heading">描述你的画面</h2>
-              <span className="muted">文字生成视频</span>
+              <h2 id="compose-heading">创作设定</h2>
+              <span className="composer-symbol" aria-hidden="true">
+                ✳
+              </span>
             </div>
             <form onSubmit={submit}>
-              <label className="field-label" htmlFor="prompt">
-                提示词
-              </label>
+              <div className="field-heading">
+                <label className="field-label" htmlFor="prompt">
+                  提示词
+                </label>
+                <span className="muted">你的画面，从这里开始</span>
+              </div>
               <div className="prompt-field">
                 <textarea
                   id="prompt"
                   name="prompt"
                   value={prompt}
                   onChange={(event) => setPrompt(event.target.value)}
-                  placeholder="例如，一只橘猫坐在雨后的窗边。镜头缓缓推近，窗外传来轻柔的雨声，温暖的光线落在它的毛发上。"
-                  disabled={submitting || Boolean(pending) || Boolean(jobId)}
+                  placeholder={
+                    "你想看见怎样的世界？\n\n试着描述主体、环境、镜头运动，以及你想听见的声音…"
+                  }
+                  disabled={inputLocked}
                   required
-                  rows={8}
+                  rows={6}
                 />
-                <span className="character-count" aria-hidden="true">
-                  {prompt.length} 字
-                </span>
+                <div className="prompt-toolbar">
+                  <span>画面 · 镜头 · 声音</span>
+                  <span className="character-count" aria-hidden="true">
+                    {prompt.length} 字
+                  </span>
+                </div>
+              </div>
+              <div className="prompt-examples" aria-label="提示词灵感">
+                <span className="muted">试一试</span>
+                {promptExamples.map((example) => (
+                  <button
+                    key={example.label}
+                    type="button"
+                    className="example-button"
+                    disabled={inputLocked}
+                    aria-pressed={prompt === example.prompt}
+                    onClick={() => usePrompt(example.prompt)}
+                  >
+                    {example.label}
+                  </button>
+                ))}
               </div>
               <div className="generation-spec">
-                <div>
-                  <span>模型</span>
-                  <strong>MiniMax-H3</strong>
+                <div className="model-card">
+                  <span className="model-symbol" aria-hidden="true">
+                    M
+                  </span>
+                  <div>
+                    <span className="spec-label">生成模型</span>
+                    <strong>
+                      {(model?.id || "MiniMaxAI/MiniMax-H3").split("/").pop()}
+                    </strong>
+                  </div>
+                  <span className="model-capability">音视频</span>
                 </div>
                 <div className="spec-row">
-                  <span>生成规格</span>
-                  <strong>
-                    768p <b>·</b> 16∶9 <b>·</b> 约 5 秒
-                  </strong>
+                  <div>
+                    <span className="spec-label">分辨率</span>
+                    <strong>{model?.short_edge ?? 768}p</strong>
+                  </div>
+                  <div>
+                    <span className="spec-label">画面比例</span>
+                    <strong>
+                      {(model?.aspect_ratio || "16:9").replace(":", "∶")}
+                    </strong>
+                  </div>
+                  <div>
+                    <span className="spec-label">目标时长</span>
+                    <strong>约 {model?.duration_seconds ?? 5} 秒</strong>
+                  </div>
                 </div>
               </div>
               <details className="seed-setting">
@@ -366,7 +460,7 @@ export default function App() {
                   placeholder="留空随机生成"
                   value={seed}
                   onChange={(event) => setSeed(event.target.value)}
-                  disabled={submitting || Boolean(pending) || Boolean(jobId)}
+                  disabled={inputLocked}
                 />
               </details>
               {submitError ? (
@@ -379,6 +473,9 @@ export default function App() {
                 type="submit"
                 disabled={!canSubmit}
               >
+                <span className="button-spark" aria-hidden="true">
+                  ✦
+                </span>
                 <span>
                   {submitting
                     ? "正在提交"
@@ -390,7 +487,9 @@ export default function App() {
                           ? "请先新建任务"
                           : "生成视频"}
                 </span>
-                <span aria-hidden="true">↗</span>
+                <span className="button-arrow" aria-hidden="true">
+                  ↗
+                </span>
               </button>
               <div className="submission-caption" aria-live="polite">
                 {jobId
@@ -411,13 +510,17 @@ export default function App() {
             playableSeconds={playableSeconds}
             onPlayable={onPlayable}
             onNewTask={newTask}
+            inspirationPrompt={promptExamples[0].prompt}
+            onUseInspiration={() => usePrompt(promptExamples[0].prompt)}
+            canUseInspiration={!inputLocked}
           />
         </div>
       </main>
       <footer className="site-footer">
-        <span>XYZenith</span>
-        <p>视频缓存保留 24 小时，空间达到上限时优先回收较早结果。</p>
-        <span>MiniMax-H3 · A100</span>
+        <span>
+          XYZenith <span className="footer-separator">/</span> 视频生成实验室
+        </span>
+        <p>结果缓存保留 24 小时，容量达到上限时优先回收较早视频。</p>
       </footer>
     </div>
   );
