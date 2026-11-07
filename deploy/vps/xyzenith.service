@@ -1,0 +1,24 @@
+[Unit]
+Description=XYZenith video demo API and task worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=xyzenith
+Group=xyzenith
+WorkingDirectory=/opt/xyzenith/current/backend
+EnvironmentFile=/etc/xyzenith/backend.env
+ExecStart=/opt/xyzenith/current/backend/.venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 18000 --workers 1
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/xyzenith
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

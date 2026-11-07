@@ -1,0 +1,14 @@
+[Unit]
+Description=XYZenith A100 to VPS reverse SSH tunnel
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/xyzenith/tunnel.env
+ExecStart=/usr/bin/ssh -NT -o BatchMode=yes -o ExitOnForwardFailure=yes -o ServerAliveInterval=20 -o ServerAliveCountMax=3 -o ConnectTimeout=15 -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes -o UserKnownHostsFile=${TUNNEL_KNOWN_HOSTS} -i ${TUNNEL_KEY} -R 127.0.0.1:13010:127.0.0.1:30010 ${VPS_USER}@${VPS_HOST}
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target
