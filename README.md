@@ -30,7 +30,7 @@ GPU 服务器优先主动建立到 VPS 的反向连接。VPS 将一个完整生�
 
 2026-11-07，已读取运维聊天和项目规范，并通过 `IF-Lab_` 直连核实两张 A100-PCIE-40GB，卡间拓扑为 NV8。`/data` 为 NFS 共享存储，剩余约 19 TB，可写。A100 到 VPS 的 22 和 443 端口可达，反向隧道仍待认证与转发验证。默认 Python 环境未发现 SGLang，推理部署与模型验证待完成。GPU 占用和可用空间须在部署时重新查询。
 
-首版模型为 MiniMax-H3，当前获批验证配置为 LightX2V 四步 LoRA、480p、约 5 秒，双 A100 加载及生成正在验证。开发与发布命令见 [部署说明](docs/deployment.md)，业务接口及故障恢复见 [后端说明](backend/README.md)，推理环境见 [推理说明](inference/README.md)，进度见 [待办清单](TODO.md)。
+首版模型为 MiniMax-H3，当前获批验证配置为 LightX2V 四步 LoRA、480p、约 5 秒。用户确认先采用单 A100 官方省内存路径，使用 GPU 0，服务主机内存上限60GiB，完整加载及生成待验收。开发与发布命令见 [部署说明](docs/deployment.md)，业务接口及故障恢复见 [后端说明](backend/README.md)，推理环境见 [推理说明](inference/README.md)，进度见 [待办清单](TODO.md)。
 
 ## 验证状态
 

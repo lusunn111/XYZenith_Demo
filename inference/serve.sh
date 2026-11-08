@@ -18,14 +18,14 @@ mkdir -p "$XYZ_OUTPUT_ROOT"
 XYZ_H3_MODEL_PATH="$model_path" "$runtime/bin/python" "$repo_root/inference/verify-model.py" \
   --metadata-only --lora-path "$lora_path"
 # The selected LightX2V FL2VA adapter needs scale 1 and training alpha 8.
-# TP2 and layerwise offload remain subject to measured A100 capacity validation.
+# The first A100 validation uses the official single-GPU mapped-weight path.
 exec "$runtime/bin/sglang" serve \
   --model-path "$model_path" \
   --model-variant fl2va \
   --served-model-name MiniMaxAI/MiniMax-H3 \
   --host 127.0.0.1 --port 30010 --strict-ports \
-  --num-gpus "${XYZ_NUM_GPUS:-2}" \
-  --tp-size "${XYZ_TP_SIZE:-2}" \
+  --num-gpus "${XYZ_NUM_GPUS:-1}" \
+  --tp-size "${XYZ_TP_SIZE:-1}" \
   --ulysses-degree "${XYZ_ULYSSES_DEGREE:-1}" \
   --encoder-parallel auto --performance-mode memory \
   --attention-backend torch_sdpa \

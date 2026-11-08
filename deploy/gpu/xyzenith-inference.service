@@ -8,9 +8,10 @@ StartLimitBurst=3
 [Service]
 Type=simple
 WorkingDirectory=%h/XYZenith_Demo
-Environment=CUDA_VISIBLE_DEVICES=0,1
+Environment=CUDA_VISIBLE_DEVICES=0
 EnvironmentFile=-%h/.config/xyzenith/inference.env
 UnsetEnvironment=HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
+MemoryMax=60G
 ExecStart=/bin/bash %h/XYZenith_Demo/inference/serve.sh
 Restart=on-failure
 RestartSec=30
