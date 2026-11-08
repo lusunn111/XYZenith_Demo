@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Download only the pinned official H3 FL2VA partition."""
+"""Download the pinned H3 FL2VA partition and its four-step adapter."""
 import json
 import os
 from pathlib import Path
 
-from huggingface_hub import snapshot_download
+from huggingface_hub import hf_hub_download, snapshot_download
 
 config = json.loads((Path(__file__).parent / "configs/minimax-h3.json").read_text())
 model_root = Path(os.environ["XYZ_MODEL_ROOT"]) / "MiniMax-H3"
@@ -17,3 +17,12 @@ snapshot_download(
     max_workers=int(os.environ.get("XYZ_DOWNLOAD_WORKERS", "8")),
 )
 print("MODEL_DOWNLOAD_COMPLETE", flush=True)
+adapter = config["lora"]
+adapter_root = Path(os.environ["XYZ_MODEL_ROOT"]) / "Minimax-h3-Turbo"
+hf_hub_download(
+    repo_id=adapter["repo_id"],
+    revision=adapter["revision"],
+    filename=adapter["filename"],
+    local_dir=adapter_root,
+)
+print(f"LORA_DOWNLOAD_COMPLETE {adapter_root / adapter['filename']}", flush=True)

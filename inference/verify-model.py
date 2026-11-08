@@ -9,12 +9,18 @@ from pathlib import Path
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--metadata-only", action="store_true")
+parser.add_argument("--lora-path", type=Path)
 args = parser.parse_args()
 
 manifest = json.loads((Path(__file__).parent / "configs/model-manifest.json").read_text())
-root = Path(os.environ.get("XYZ_H3_MODEL_PATH", str(Path(os.environ["XYZ_MODEL_ROOT"]) / "MiniMax-H3")))
-def verify(entry):
-    path = root / entry["rfilename"]
+if os.environ.get("XYZ_H3_MODEL_PATH"):
+    root = Path(os.environ["XYZ_H3_MODEL_PATH"])
+else:
+    root = Path(os.environ["XYZ_MODEL_ROOT"]) / "MiniMax-H3"
+
+
+def verify(entry, base=root):
+    path = base / entry["rfilename"]
     size = path.stat().st_size
     if size != entry["size"]:
         raise ValueError(f"Size mismatch: {path}")
@@ -37,6 +43,15 @@ with ThreadPoolExecutor(max_workers=int(os.environ.get("XYZ_VERIFY_WORKERS", "4"
     futures = [executor.submit(verify, entry) for entry in manifest["files"]]
     for future in as_completed(futures):
         print(f"VERIFIED {future.result()}", flush=True)
+if args.lora_path:
+    config = json.loads((Path(__file__).parent / "configs/minimax-h3.json").read_text())
+    adapter = config["lora"]
+    entry = {
+        "rfilename": args.lora_path.name,
+        "size": adapter["size"],
+        "lfs": {"sha256": adapter["sha256"]},
+    }
+    print(f"VERIFIED {verify(entry, args.lora_path.parent)}", flush=True)
 if args.metadata_only:
     print("MODEL_METADATA_VERIFIED " + manifest["revision"], flush=True)
 else:

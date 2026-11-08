@@ -1,9 +1,9 @@
 #!/usr/bin/env sh
 
 # Source this file in the shell used for model downloads and inference.
-export XYZ_DATA_ROOT="${XYZ_DATA_ROOT:-/data/Zhihao/XYZenith_Demo}"
+export XYZ_DATA_ROOT="${XYZ_DATA_ROOT:-$HOME/.local/share/xyzenith}"
 export XYZ_MODEL_ROOT="${XYZ_MODEL_ROOT:-$XYZ_DATA_ROOT/models}"
-export XYZ_OUTPUT_ROOT="${XYZ_OUTPUT_ROOT:-$XYZ_DATA_ROOT/outputs}"
+export XYZ_OUTPUT_ROOT="${XYZ_OUTPUT_ROOT:-/data/Zhihao/XYZenith_Demo/outputs}"
 export XYZ_VENV_ROOT="${XYZ_VENV_ROOT:-$XYZ_DATA_ROOT/.venvs}"
 export HF_HOME="$XYZ_DATA_ROOT/cache/huggingface"
 export HF_HUB_CACHE="$HF_HOME/hub"

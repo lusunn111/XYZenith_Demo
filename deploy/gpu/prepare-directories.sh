@@ -4,14 +4,16 @@ set -euo pipefail
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 source "$script_dir/env.sh"
 
-case "$XYZ_DATA_ROOT" in
-  /data/*)
-    if ! mountpoint -q /data; then
-      printf 'Expected /data to be mounted before creating project directories.\n' >&2
-      exit 1
-    fi
-    ;;
-esac
+for project_directory in "$XYZ_DATA_ROOT" "$XYZ_MODEL_ROOT" "$XYZ_OUTPUT_ROOT" "$XYZ_VENV_ROOT"; do
+  case "$project_directory" in
+    /data|/data/*)
+      if ! mountpoint -q /data; then
+        printf 'Expected /data to be mounted before creating project directories.\n' >&2
+        exit 1
+      fi
+      ;;
+  esac
+done
 
 mkdir -p -- \
   "$XYZ_MODEL_ROOT" \

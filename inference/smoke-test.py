@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Submit or resume one real H3 task and persist its recovery information."""
 import argparse
+import importlib.metadata
 import json
+import os
 import time
 import urllib.request
 from pathlib import Path
@@ -11,6 +13,7 @@ parser.add_argument("--base-url", default="http://127.0.0.1:30010")
 parser.add_argument("--output", type=Path, required=True)
 parser.add_argument("--resume", metavar="JOB_ID")
 parser.add_argument("--timeout", type=int, default=7200)
+parser.add_argument("--sglang-version", default=os.getenv("XYZ_SGLANG_VERSION"))
 parser.add_argument("--prompt", default="A small orange cat walks slowly across a sunlit wooden floor. The camera remains steady, with soft natural light and quiet room ambience.")
 args = parser.parse_args()
 config = json.loads((Path(__file__).parent / "configs/minimax-h3.json").read_text())
@@ -25,7 +28,32 @@ def save_record():
     temporary.replace(record_path)
 
 
-body = record.get("request") or {"model": config["model_id"], "prompt": args.prompt, "task": config["task"], "target": config["target"], "seed": 42}
+body = record.get("request")
+if not body:
+    runtime_version = args.sglang_version
+    if not runtime_version:
+        try:
+            runtime_version = importlib.metadata.version("sglang").split("+")[0]
+        except importlib.metadata.PackageNotFoundError:
+            parser.error("Run in the serving environment or pass --sglang-version for the remote service.")
+    try:
+        request_steps = config["request_steps_by_sglang"][runtime_version]
+    except KeyError:
+        parser.error(f"Unverified SGLang version {runtime_version}; verify its H3 step-count convention first.")
+    sampling = config["sampling"]
+    body = {
+        "model": config["model_id"],
+        "prompt": args.prompt,
+        "task": config["task"],
+        "conditions": [],
+        "target": config["target"],
+        "num_inference_steps": request_steps,
+        "flow_shift": sampling["flow_shift"],
+        "audio_flow_shift": sampling["audio_flow_shift"],
+        "quality": sampling["quality"],
+        "seed": 42,
+    }
+    record["sglang_version"] = runtime_version
 job_id = args.resume or record.get("job_id")
 if record.get("status") in {"submitting", "submission_unknown"} and not job_id:
     raise RuntimeError("Previous submission has no confirmed job ID. Reconcile it, then use --resume JOB_ID.")

@@ -4,9 +4,29 @@
   "variant": "fl2va",
   "task": "t2va",
   "target": {
-    "short_edge": 768,
+    "short_edge": 480,
     "aspect_ratio": "16:9",
     "duration_seconds": 5
+  },
+  "sampling": {
+    "denoising_steps": 4,
+    "flow_shift": 12.0,
+    "audio_flow_shift": 3.0,
+    "quality": "lossless"
+  },
+  "request_steps_by_sglang": {
+    "0.5.19": 5,
+    "0.5.23": 4
+  },
+  "lora": {
+    "repo_id": "lightx2v/Minimax-h3-Turbo",
+    "revision": "30f485ed874aa44c8183348ad361c5eabad318da",
+    "filename": "minimax_h3_fl2v_turbo_4step_v0.1.safetensors",
+    "size": 1383677888,
+    "sha256": "5ff4a12c8b4599fec716e1b15a45e504e0d1129111896bdcde5ac4a15e395b29",
+    "scale": 1.0,
+    "alpha": 8,
+    "merge_mode": "auto"
   },
   "sglang_preferred_version": "0.5.23",
   "sglang_fallback_version": "0.5.19",
