@@ -6,7 +6,7 @@
 
 ## 环境与权重准备
 
-在 A100 的 `~/XYZenith_Demo` 执行。经用户确认，模型、隔离环境与缓存使用本地项目数据目录，视频输出保留在共享数据盘。实际位置由 `deploy/gpu/env.sh` 和部署环境指定。
+在 A100 的 `~/XYZenith_Demo` 执行。经用户确认，模型、隔离环境与缓存使用本地目录 `~/.local/share/xyzenith`，视频输出保留在共享目录 `/data/Zhihao/XYZenith_Demo/outputs`。实际位置由 `deploy/gpu/env.sh` 和部署环境指定。
 
 ```bash
 bash deploy/gpu/prepare-directories.sh
@@ -16,10 +16,9 @@ source "$XYZ_VENV_ROOT/sglang-cu129/bin/activate"
 source deploy/gpu/runtime-env.sh "$VIRTUAL_ENV"
 export XYZ_H3_MODEL_PATH="$XYZ_MODEL_ROOT/MiniMax-H3"
 export XYZ_H3_LORA_PATH="$XYZ_MODEL_ROOT/Minimax-h3-Turbo/minimax_h3_fl2v_turbo_4step_v0.1.safetensors"
-python inference/verify-model.py --metadata-only --lora-path "$XYZ_H3_LORA_PATH"
 ```
 
-`install-runtime.sh cu130` 对应优先版本 SGLang 0.5.23，要求驱动与 CUDA 13 环境匹配。`cu129` 对应回退版本 0.5.19，使用 `requirements-cu129.lock.txt` 固定实测环境，包含上游 Dockerfile 的 CUDA 12 依赖替换。已通过本机双 A100 基础验证，完整生成另行验收。
+当前复现使用 `install-runtime.sh cu129`，通过 `requirements-cu129.lock.txt` 固定 SGLang 0.5.19 实测环境，包含上游 Dockerfile 的 CUDA 12 依赖替换。双 A100 基础检查、单卡完整生成和公网双任务验收已通过。`cu130` 对应 SGLang 0.5.23 候选环境，要求驱动与 CUDA 13 环境匹配。
 
 安装器可读取 `$XYZ_WHEEL_ROOT` 中的三份 CUDA 12 扩展 wheel，默认目录为 `$XYZ_DATA_ROOT/cache/wheels`。缓存文件与网络下载均按官方 SHA256 验证。锁文件通过 `--no-deps` 安装完整依赖列表，以保留 CUDA 12 替换。官方 SGLang wheel 的元数据仍声明 `cuda-python>=13.0`，因此 `uv pip check` 会报告这一已知差异。实际 GPU 验证结果见下文。
 
@@ -43,7 +42,7 @@ LoRA 使用 `scale=1.0`、训练 `alpha=8` 和自动合并，视频与音频时�
 | 0.5.19 | 5 | 4 |
 | 0.5.23 | 4 | 4 |
 
-`configs/minimax-h3.json` 保存版本映射与固定请求规格。5 秒目标由模型对齐帧数，播放时长以输出视频元数据为准。480p 配置和双 A100 容量需要通过真实生成验证。
+`configs/minimax-h3.json` 保存版本映射与固定请求规格。5 秒目标由模型对齐帧数，播放时长以输出视频元数据为准。当前单 A100 已完成 480p 四步真实生成验证。
 
 ## GPU 验证与启动
 
@@ -61,7 +60,7 @@ systemd-run --user --scope -p MemoryMax=60G bash inference/serve.sh
 
 `runtime-env.sh` 在选定虚拟环境内建立 cuDNN 完整版本名的符号链接，并前置项目 CUDA 库目录。当前服务器另有系统 CUDA 13 cuDNN，直接加载 PyPI 的 CUDA 12 主库仍可能误用系统同版本名子库。启动脚本自动应用此绑定，手动 GPU 预检需要按上方命令加载。卷积检查覆盖 FP32、FP16 和 BF16，并核对实际加载库的位置。
 
-`serve.sh` 使用官方单卡文件映射和逐层卸载配置，默认 DiT 常驻层数为 0。`XYZ_NUM_GPUS`、`XYZ_TP_SIZE`、`XYZ_ULYSSES_DEGREE` 分别指定同一服务实例的 GPU 数、张量并行度和序列并行度，默认值为 1、1、1。运行者须显式设置 `CUDA_VISIBLE_DEVICES`。当前用户服务指定 GPU 0，并通过 `MemoryMax=60G` 限制本项目主机内存。SGLang 已在 CPU 预检中正确识别该限制，并选择文本编码器文件映射。
+`serve.sh` 使用官方单卡文件映射和逐层卸载配置，默认 DiT 常驻层数为 0。`XYZ_NUM_GPUS`、`XYZ_TP_SIZE`、`XYZ_ULYSSES_DEGREE` 分别指定同一服务实例的 GPU 数、张量并行度和序列并行度，默认值为 1、1、1。运行者须显式设置 `CUDA_VISIBLE_DEVICES`。当前用户服务指定 GPU 0，并通过 `MemoryMax=60G` 限制本项目主机内存。SGLang 已识别该限制并选择文本编码器文件映射，配合关闭权重锁页后已完成模型加载。
 
 首轮固定 `--pin-cpu-memory false`，关闭整层权重锁页，文件映射传输仍使用少量暂存槽。实际缓存命中启动时，自动锁页方案选择27GiB锁页权重，触发60GiB进程组上限。该参数用于降低主机常驻内存需求，生成参数保持既定配置。
 
@@ -69,7 +68,7 @@ systemd-run --user --scope -p MemoryMax=60G bash inference/serve.sh
 
 首轮 A100 配置显式选择 `torch_sdpa` 精确注意力后端，保持 `quality=lossless`。v0.5.19 默认 FlashAttention 版本选择与 GPU 架构有关，其他后端需要先单独验证兼容性，再测完整生成。
 
-A100 和 L20 上的真实生成均待验证，`profile_status` 保持 `pending_generation_validation`。`XYZ_DIT_RESIDENT_LAYERS` 可调整常驻层数，`XYZ_RUNTIME` 可指定经过验证的环境目录。
+单 A100 40GB 已完成真实生成，`profile_status` 为 `validated_single_a100_40gb`。首条成功任务输出864×480、124帧、24fps的视频和AAC音轨，视频轨5.166667秒，MP4容器5.207秒，提交至下载完成578.75秒。L20需独立验证。`XYZ_DIT_RESIDENT_LAYERS` 可调整常驻层数，`XYZ_RUNTIME` 可指定经过验证的环境目录。
 
 启动脚本检查基础权重与 LoRA 尺寸和小文件 Git 摘要，完整 SHA256 校验作为单独验证执行，成功后在项目模型目录写入版本标记。`XYZ_H3_MODEL_PATH` 与 `XYZ_H3_LORA_PATH` 可分别指定基础权重和 LoRA 文件。输出视频保存在 `$XYZ_OUTPUT_ROOT`。
 
@@ -99,7 +98,9 @@ journalctl --user -u xyzenith-inference -f
 
 2026-11-08，本地隔离环境已安装 SGLang 0.5.19、Torch 2.13.0+cu129、CUDA 12.9、Triton 3.7.1。两张 A100 的 BF16 矩阵运算、Triton 即时编译和 NCCL all-reduce 均通过。视频 API、H3 pipeline 和视频适配模块导入成功。229包的锁文件重放通过。显式 FA4 的 SM80 小张量测试在 CuTe 编译中遇到 `nvvm.fmax` 签名错误，当前启动脚本采用已通过小张量验证的 `torch_sdpa`。
 
-以下为11月7日的历史准备记录。
+本地 85 个基础文件和 LoRA 共 86 项完整摘要校验通过。项目 cuDNN 库绑定后的六组 Conv3d（三维卷积）检查通过，覆盖 FP32、FP16、BF16 与两种卷积核尺寸，实际子库均来自项目 CUDA 12 环境。GPU 0、60 GiB 主机内存上限和关闭权重锁页的配置已完成原生及公网真实视频生成，参数、耗时与故障记录见 [验收记录](../docs/validation.md)。
+
+### 2026-11-07 历史准备记录
 
 2026-11-07 已复查双 A100 40 GB、驱动 550.54.14，项目数据目录与 Python 3.12 独立环境已创建。CUDA 12.9 回退依赖安装在 NVIDIA wheel 下载时遇到 TLS 握手失败，安装未完成，尚无通过验收的运行时冻结清单。GPU 运算、即时编译、双卡通信、H3 加载及真实生成均未执行。
 
@@ -109,4 +110,4 @@ NFS 路由使用 `eno8403`，该接口协商速率为 100 Mbps。四线程文件
 
 2026-11-07 转为可行性评估与交接时，项目依赖安装、重复权重下载和摘要校验任务已停止，下载缓存、部分文件和日志保留。2026-11-08 用户确认恢复部署，采用本地模型与缓存、480p 四步生成，原始视频保留在共享目录。当前部署进度以项目待办和记忆记录为准。
 
-脚本已通过 Bash 语法检查和 Python 编译检查。候选安装脚本仍需继续解决依赖下载与实际 GPU 兼容性，性能数据以未来的真实任务测量为准。
+截至11月7日，脚本已通过 Bash 语法检查和 Python 编译检查，当时仍待解决依赖下载与实际 GPU 兼容性。后续安装及验证结果见本节的11月8日记录。

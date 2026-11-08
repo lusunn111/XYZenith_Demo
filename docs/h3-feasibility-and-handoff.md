@@ -2,13 +2,13 @@
 
 ## 当前结论
 
-2026-11-08 复查，本地根卷空闲约 1.6 TiB，共享盘空闲约 19 TiB，两张 A100 40 GB 均空闲，主机可用内存约 69 GiB。用户已确认本地缓存、480p、约 5 秒、LightX2V 四步方案。模型、环境与缓存进入 `~/.local/share/xyzenith`，生成原件进入共享盘 `outputs`。下文的 7.8 GB 空闲及暂停状态属于前一日检查记录，当前部署已恢复。
+2026-11-08 部署前复查，本地根卷空闲约 1.6 TiB，共享盘空闲约 19 TiB，两张 A100 40 GB 均空闲，主机可用内存约 69 GiB。用户已确认本地缓存、480p、约 5 秒、LightX2V 四步方案。模型、环境与缓存进入 `~/.local/share/xyzenith`，生成原件进入 `/data/Zhihao/XYZenith_Demo/outputs`。下文的 7.8 GB 空闲及暂停状态属于前一日检查记录。
 
-同日已安装 SGLang 0.5.19-cu129，并通过双卡运算、即时编译、通信和 `torch_sdpa` 小张量验证。完整加载前的 CPU 夹具复现了 LoRA 底权快照与逐层卸载缓冲重复占用内存。当前 TP2 配置的 CPU 参数分片属于匿名内存，直接采用 `dynamic` 仍会保留旧分片，超过本机随后测得的约78GiB可用内存预算。完整 H3 加载尚未执行。
+同日已通过锁文件安装 SGLang 0.5.19-cu129，并通过双卡运算、即时编译、通信和 `torch_sdpa` 小张量验证。本地 85 个基础权重文件及 LoRA 共 86 项完整摘要通过。加载前的 CPU 夹具复现了 LoRA 底权快照与逐层卸载缓冲重复占用内存。当时评估的 TP2 配置使用匿名 CPU 参数分片，直接采用 `dynamic` 仍会保留旧分片，超过本机随后测得的约78GiB可用内存预算。
 
-单卡官方路径能保留更多文件映射，另有针对重复存储的局部修复通过21组CPU回归和独立复核。用户已确认先验证单 A100 官方省内存方案。CPU-only 用户服务测试确认 `MemoryMax=60G` 会被 SGLang 的主机预算识别，并触发文本编码器保留文件映射。当前使用 GPU 0及该主机内存上限，双卡补丁保留为后续候选。
+用户已确认先验证单 A100 官方省内存方案，当前使用 GPU 0，GPU 数、张量并行度和序列并行度均为1。`MemoryMax=60G` 被 SGLang 的主机预算识别，并触发文本编码器保留文件映射。配合 `--pin-cpu-memory false` 关闭权重锁页后，完整模型已加载，原生生成及公网双任务均成功。针对双卡重复存储的局部修复通过21组CPU回归和独立复核，保留为后续候选。
 
-双 A100 40 GiB 存在通过分阶段加载、流式读取和 CPU 卸载运行原版 H3 的技术路径。本机的 768p、约 5 秒请求尚未完成真实生成，当前缺少与其主机内存及存储条件相匹配的官方成功配置。工程状态记为“候选配置，未验证”。
+2026-11-07 的双 A100 调研发现，通过分阶段加载、流式读取和 CPU 卸载运行原版 H3 存在技术路径。当时评估的 768p、约 5 秒请求缺少与本机主机内存及存储条件相匹配的官方成功配置，该双卡方案保留为未验证候选。
 
 2026-11-07 用户要求先完成可行性调研，双 A100 路线受限时交付链路，由另一位同学在 L20 资源上验证推理。当日暂停 A100 模型加载与真实生成，2026-11-08 按已确认的新配置恢复部署，实测进展见项目记忆。
 
@@ -28,9 +28,9 @@
 
 模型卡说明生成主干约 13B 参数属于可预计算的 AdaLN 分支。公开权重包含原始分支，SGLang 默认采用标准路径，预计算缓存需要额外显式配置及验证。容量预算应包含默认实际加载的组件。[MiniMax 官方模型卡](https://huggingface.co/MiniMaxAI/MiniMax-H3) · [SGLang AdaLN 缓存说明](https://github.com/sgl-project/sglang/blob/v0.5.23/docs/cookbook/diffusion/MiniMax/MiniMax-H3.mdx#advanced-precomputed-adaln-cache)
 
-本机实测为双 A100-PCIE-40GB、NV8 互联，主机内存 125 GiB、当时可用约 79 GiB。根卷仅余约 7.8 GB，共享 `/data` 剩余约 19 TB。共享盘经 `eno8403` 连接 NAS，该口本机支持千兆，对端仅通告 10/100baseT，实际协商 100 Mbps，全双工。读取约 11.5 MiB/s。公网千兆口属于另一子网，绑定该口访问 NAS 的短连接测试失败。
+2026-11-07 本机实测为双 A100-PCIE-40GB、NV8 互联，主机内存 125 GiB、当时可用约 79 GiB。根卷仅余约 7.8 GB，共享 `/data` 剩余约 19 TB。共享盘经 `eno8403` 连接 NAS，该口本机支持千兆，对端仅通告 10/100baseT，实际协商 100 Mbps，全双工。读取约 11.5 MiB/s。公网千兆口属于另一子网，绑定该口访问 NAS 的短连接测试失败。
 
-完整顺序读取 144 GB 文件约需 3.3 小时，这是带宽估算。首次加载和低内存条件下的再次读取均可能受影响。已暂停额外全量哈希读取，保留文件尺寸及已通过的小文件摘要检查，完整权重校验状态仍待完成。
+按当时共享盘带宽，完整顺序读取 144 GB 文件约需 3.3 小时，首次加载和低内存条件下的再次读取均可能受影响。11月7日暂停了额外全量哈希读取，保留文件尺寸及已通过的小文件摘要检查。11月8日已完成本地副本及完整摘要校验，当前模型加载读取本地盘。
 
 ## 官方及社区证据
 
@@ -43,11 +43,11 @@
 | 官方文档低内存预算测试 | 12 GB GPU、32 GB 主机预算，实际宿主机 2 TB 内存，映射权重由系统页缓存承载 | 吞吐测量需要连同物理宿主机条件理解 |
 | 社区一手报告 | 2×5090、116 GB 内存控制组、0.5.17 加四处代码补丁，CPU 峰值 114.7 GB，完成 Ref2VA 请求 | 提供进一步研究线索，本机尚未复现 |
 
-前两项来自 [SGLang H3 部署文档](https://github.com/sgl-project/sglang/blob/v0.5.23/docs/cookbook/diffusion/MiniMax/MiniMax-H3.mdx) 和 [官方部署配置源码](https://github.com/sgl-project/sglang/blob/v0.5.23/docs/src/snippets/configs/MiniMaxAI/minimax-h3.jsx)。社区记录来自 [Discussion #34426](https://github.com/sgl-project/sglang/discussions/34426)。这些结果保留原有硬件和生成规格，本项目尚无 A100 或 L20 实测生成耗时。
+前两项来自 [SGLang H3 部署文档](https://github.com/sgl-project/sglang/blob/v0.5.23/docs/cookbook/diffusion/MiniMax/MiniMax-H3.mdx) 和 [官方部署配置源码](https://github.com/sgl-project/sglang/blob/v0.5.23/docs/src/snippets/configs/MiniMaxAI/minimax-h3.jsx)。社区记录来自 [Discussion #34426](https://github.com/sgl-project/sglang/discussions/34426)。这些结果保留原有硬件和生成规格，本项目11月8日的单A100实测见 [验收记录](validation.md)，L20仍待验证。
 
 ## 四步蒸馏与 480p 补查
 
-2026-11-07 补查确认 H3 已有公开的四步蒸馏权重，前述原版运行记录仅覆盖基础模型路线。SGLang v0.5.23 官方文档已收录 LightX2V 四步 LoRA（低秩适配权重）配置，可作为本项目下一次推理验证的候选。
+2026-11-07 补查确认 H3 已有公开的四步蒸馏权重，前述原版运行记录仅覆盖基础模型路线。SGLang v0.5.23 官方文档已收录 LightX2V 四步 LoRA（低秩适配权重）配置。11月8日用户确认采用该方案，当前使用 v0.5.19-cu129 对应的四步请求。
 
 表 3 已核实的四步发布
 
@@ -57,13 +57,13 @@
 | `FastVideo/FastVideo-FastH3-4-step-Preview-v1-Dense-DataFree` | 四次主干前向的文生音视频模型，原生 FastVideo 示例使用 `--steps 5` 表示含终点的五个调度点。另有采用 VSA（视频稀疏注意力）的版本，需要对应计算内核。[Dense 模型卡](https://huggingface.co/FastVideo/FastVideo-FastH3-4-step-Preview-v1-Dense-DataFree) · [VSA 模型卡](https://huggingface.co/FastVideo/FastVideo-FastH3-4-step-Preview-v1-VSA-DataFree) |
 | `taobao-content-ai/MiniMax-H3-PTD-LoRAs` | 提供四步与八步 PTD（参数化轨迹蒸馏）LoRA，模型卡针对 Ref2VA 参考条件生成。当前网页的纯文本请求需要优先选择对应 T2VA 权重。[模型卡](https://huggingface.co/taobao-content-ai/MiniMax-H3-PTD-LoRAs) |
 
-LightX2V v0.1 的蒸馏训练分辨率为 544p，视频/音频 shift（采样时间偏移）为 12/3。其发布者代码将 `16:9`、`0.4` 百万像素映射到 `864×480`。据此可以构建 480p、四步候选请求，画质与双 A100 资源占用待实测。768p v1.0 文件采用 6/3，使用该文件时须同步调整调度参数。[训练规格](https://github.com/ModelTC/Minimax-H3-Turbo#1-model-specs) · [分辨率源码](https://github.com/ModelTC/Minimax-H3-Turbo/blob/main/resolution_util.py)
+LightX2V v0.1 的蒸馏训练分辨率为 544p，视频/音频 shift（采样时间偏移）为 12/3。其发布者代码将 `16:9`、`0.4` 百万像素映射到 `864×480`。本项目据此采用 480p 四步请求，单 A100 已生成可播放结果，两次网页生成服务耗时530.34秒和486.82秒。768p v1.0 文件采用 6/3，使用该文件时须同步调整调度参数。[训练规格](https://github.com/ModelTC/Minimax-H3-Turbo#1-model-specs) · [分辨率源码](https://github.com/ModelTC/Minimax-H3-Turbo/blob/main/resolution_util.py)
 
-SGLang v0.5.23 的 `num_inference_steps=4` 执行四次去噪，源码构建五个 sigma 调度点。旧版框架与 FastVideo 示例存在按调度点计数的接口，回退运行环境时需检查实际前向次数。[调度源码](https://github.com/sgl-project/sglang/blob/v0.5.23/python/sglang/multimodal_gen/runtime/pipelines_core/stages/model_specific_stages/minimax_h3/time_request.py)
+当前 SGLang v0.5.19 使用 `num_inference_steps=5` 执行四次去噪。v0.5.23 的对应值为4，源码构建五个 sigma 调度点。仓库的请求脚本根据服务端版本选择该字段。[v0.5.19 官方配方](https://github.com/sgl-project/sglang/blob/v0.5.19/docs/cookbook/diffusion/MiniMax/MiniMax-H3.mdx) · [v0.5.23 调度源码](https://github.com/sgl-project/sglang/blob/v0.5.23/python/sglang/multimodal_gen/runtime/pipelines_core/stages/model_specific_stages/minimax_h3/time_request.py)
 
 480p 四步已有社区运行记录。Sogni Labs 的单 RTX 5090 32 GB 图生视频测试采用 480×640、362 帧、24 fps、15.08 秒并生成音频，LightX2V 四步 FP8 路线热运行约 67 秒，FastH3 四步 INT8 路线约 55 秒。计时覆盖任务开始至 MP4 回传，排队和模型加载在该口径之外。这些结果对应其量化、工作流及硬件，双 A100 和 L20 的五秒视频耗时仍待验证。[测量者原文](https://blog.sogni.ai/blogs/fasth3-minimax-h3/)
 
-四步蒸馏减少重复去噪计算，480p 降低激活与解码负担。基础主干、文本编码器和 VAE 的权重加载仍需纳入容量预算，本项目的百兆共享盘读取条件也需要纳入实际测量。四步方案现为已核实发布、待部署验证的候选。
+四步蒸馏减少重复去噪计算，480p 降低激活与解码负担。基础主干、文本编码器和 VAE 的权重加载仍需纳入容量预算。当前通过本地权重副本执行生成，共享盘用于视频原件保存。四步服务已完成单卡加载、真实视频生成和浏览器验收。
 
 ## 给 L20 部署同学的接口与步骤
 
@@ -108,8 +108,8 @@ VPS 网页接口、任务队列和媒体保存已实现。卡数、卸载或量�
 
 ## 已完成的链路验收
 
-网页和后端已部署，19 项后端测试通过。浏览器受控测试覆盖提交、状态、播放、刷新、缓存过期和手机布局。
+网页和后端已部署，2026-11-08 在 VPS 运行的39项后端测试全部通过。11月7日的浏览器受控测试覆盖提交、状态、播放、刷新、缓存过期和手机布局。
 
-另在真实 A100 到 VPS 反向隧道上执行隔离 CPU 测试。A100 的 `backend/tests/chain_inference_fixture.py` 提供带 `/chain-test` 前缀的测试接口，VPS 独立临时后端调用该前缀，完成任务提交、查询、视频回传、真实 ffprobe 检查和 Range 206 下载。回传视频 SHA256 与原始测试文件一致。
+11月7日还在真实 A100 到 VPS 反向隧道上执行隔离 CPU 测试。A100 的 `backend/tests/chain_inference_fixture.py` 提供带 `/chain-test` 前缀的测试接口，VPS 独立临时后端调用该前缀，完成任务提交、查询、视频回传、真实 ffprobe 检查和 Range 206 下载。回传视频 SHA256 与原始测试文件一致。
 
-测试素材为 320×180、1 秒的合成 MP4。测试期间公开服务始终显示真实推理离线，结束后两个临时进程已停止。真实 H3 视频生成仍由部署同学完成验收。
+测试素材为 320×180、1 秒的合成 MP4。测试期间公开服务始终显示真实推理离线，结束后两个临时进程已停止。11月8日已完成真实H3公网双任务、刷新恢复、播放下载及生成期间VPS后端重启验收，详情见 [验收记录](validation.md)。

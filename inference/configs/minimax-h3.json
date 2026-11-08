@@ -31,7 +31,7 @@
   "sglang_preferred_version": "0.5.23",
   "sglang_fallback_version": "0.5.19",
   "fallback_cuda": "12.9",
-  "profile_status": "pending_generation_validation",
+  "profile_status": "validated_single_a100_40gb",
   "runtime_status": "installed_cu129",
   "gpu_validation_status": "passed",
   "full_checksum_status": "verified"

@@ -138,7 +138,7 @@ export default function ResultPanel({
             </h3>
             <p>
               {job?.status === "queued"
-                ? `前方等待 ${Math.max(0, (job.queue_position ?? 1) - 1)} 个任务，轮到后会自动开始。`
+                ? `排队第 ${job.queue_position ?? 1} 位，轮到后会自动开始。`
                 : null}
               {job?.status === "submitting" ? "正在连接 A100 推理实例。" : null}
               {job?.status === "running"
