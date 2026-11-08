@@ -66,4 +66,5 @@ PY
   "$uv_bin" pip install --python "$runtime/bin/python" --no-deps "sglang==$version"
 fi
 "$uv_bin" pip freeze --python "$runtime/bin/python" > "$XYZ_DATA_ROOT/logs/runtime-$profile.freeze.txt"
+source "$script_dir/runtime-env.sh" "$runtime"
 "$runtime/bin/python" -c 'import torch; print("Torch", torch.__version__, "CUDA", torch.version.cuda); print("GPUs", torch.cuda.device_count()); assert torch.cuda.is_available()'

@@ -13,6 +13,7 @@ bash deploy/gpu/prepare-directories.sh
 source deploy/gpu/env.sh
 bash deploy/gpu/install-runtime.sh cu129
 source "$XYZ_VENV_ROOT/sglang-cu129/bin/activate"
+source deploy/gpu/runtime-env.sh "$VIRTUAL_ENV"
 export XYZ_H3_MODEL_PATH="$XYZ_MODEL_ROOT/MiniMax-H3"
 export XYZ_H3_LORA_PATH="$XYZ_MODEL_ROOT/Minimax-h3-Turbo/minimax_h3_fl2v_turbo_4step_v0.1.safetensors"
 python inference/verify-model.py --metadata-only --lora-path "$XYZ_H3_LORA_PATH"
@@ -46,14 +47,19 @@ LoRA 使用 `scale=1.0`、训练 `alpha=8` 和自动合并，视频与音频时�
 
 ## GPU 验证与启动
 
-先检查 GPU 占用，然后运行 BF16 矩阵运算、Triton 即时编译和双卡 NCCL 通信检查。
+先检查 GPU 占用，然后运行 BF16 矩阵运算、Triton 即时编译、NCCL 通信和三维卷积检查。下面的命令使用已分配的单张 GPU。
 
 ```bash
 nvidia-smi
+source deploy/gpu/env.sh
+source "$XYZ_VENV_ROOT/sglang-cu129/bin/activate"
+source deploy/gpu/runtime-env.sh "$VIRTUAL_ENV"
 export CUDA_VISIBLE_DEVICES=0
 torchrun --standalone --nproc-per-node=1 inference/check-gpu.py
 systemd-run --user --scope -p MemoryMax=60G bash inference/serve.sh
 ```
+
+`runtime-env.sh` 在选定虚拟环境内建立 cuDNN 完整版本名的符号链接，并前置项目 CUDA 库目录。当前服务器另有系统 CUDA 13 cuDNN，直接加载 PyPI 的 CUDA 12 主库仍可能误用系统同版本名子库。启动脚本自动应用此绑定，手动 GPU 预检需要按上方命令加载。卷积检查覆盖 FP32、FP16 和 BF16，并核对实际加载库的位置。
 
 `serve.sh` 使用官方单卡文件映射和逐层卸载配置，默认 DiT 常驻层数为 0。`XYZ_NUM_GPUS`、`XYZ_TP_SIZE`、`XYZ_ULYSSES_DEGREE` 分别指定同一服务实例的 GPU 数、张量并行度和序列并行度，默认值为 1、1、1。运行者须显式设置 `CUDA_VISIBLE_DEVICES`。当前用户服务指定 GPU 0，并通过 `MemoryMax=60G` 限制本项目主机内存。SGLang 已在 CPU 预检中正确识别该限制，并选择文本编码器文件映射。
 

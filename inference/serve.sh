@@ -3,6 +3,7 @@ set -euo pipefail
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$repo_root/deploy/gpu/env.sh"
 runtime="${XYZ_RUNTIME:-$XYZ_VENV_ROOT/sglang-cu129}"
+source "$repo_root/deploy/gpu/runtime-env.sh" "$runtime"
 model_path="${XYZ_H3_MODEL_PATH:-$XYZ_MODEL_ROOT/MiniMax-H3}"
 lora_path="${XYZ_H3_LORA_PATH:-$XYZ_MODEL_ROOT/Minimax-h3-Turbo/minimax_h3_fl2v_turbo_4step_v0.1.safetensors}"
 : "${CUDA_VISIBLE_DEVICES:?Set CUDA_VISIBLE_DEVICES to the GPUs assigned to this instance}"

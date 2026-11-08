@@ -34,5 +34,5 @@
   "profile_status": "pending_generation_validation",
   "runtime_status": "installed_cu129",
   "gpu_validation_status": "passed",
-  "full_checksum_status": "incomplete"
+  "full_checksum_status": "verified"
 }
