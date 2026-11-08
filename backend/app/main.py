@@ -88,7 +88,8 @@ def create_app(settings=None, service=None):
             raise error(503, "inference_unavailable", "推理服务暂不可用，请稍后重试。")
         try:
             job = instance.store.submit(client_id, body.prompt, body.seed,
-                                        instance.settings.model_id, instance.settings.queue_capacity)
+                                        instance.settings.model_id, instance.settings.queue_capacity,
+                                        generation=instance.settings.generation)
         except QueueFull:
             raise error(429, "queue_full", "等待队列已满，请稍后重试。")
         except RequestConflict:

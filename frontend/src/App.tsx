@@ -10,6 +10,11 @@ import {
 import ResultPanel from "./ResultPanel";
 
 const pendingKey = "xyzenith.pending.v1";
+const legacyTarget = {
+  short_edge: 768,
+  aspect_ratio: "16:9",
+  duration_seconds: 5,
+};
 const promptExamples = [
   {
     label: "海岸建筑",
@@ -92,7 +97,11 @@ export default function App() {
   const postController = useRef<AbortController | null>(null);
   const active = Boolean(job && !isFinished(job));
   const inputLocked = submitting || Boolean(pending) || Boolean(jobId);
-  const model = health?.model;
+  const model = job
+    ? { id: job.model_id, ...(job.generation?.target || legacyTarget) }
+    : jobId
+      ? null
+      : health?.model;
   const online = health?.inference.status === "online" && !healthError;
   const queueFull = Boolean(
     health && health.queue.waiting >= health.queue.capacity,
@@ -429,17 +438,19 @@ export default function App() {
                 <div className="spec-row">
                   <div>
                     <span className="spec-label">分辨率</span>
-                    <strong>{model?.short_edge ?? 768}p</strong>
+                    <strong>{model ? `${model.short_edge}p` : "—"}</strong>
                   </div>
                   <div>
                     <span className="spec-label">画面比例</span>
                     <strong>
-                      {(model?.aspect_ratio || "16:9").replace(":", "∶")}
+                      {model?.aspect_ratio.replace(":", "∶") || "—"}
                     </strong>
                   </div>
                   <div>
                     <span className="spec-label">目标时长</span>
-                    <strong>约 {model?.duration_seconds ?? 5} 秒</strong>
+                    <strong>
+                      {model ? `约 ${model.duration_seconds} 秒` : "—"}
+                    </strong>
                   </div>
                 </div>
               </div>

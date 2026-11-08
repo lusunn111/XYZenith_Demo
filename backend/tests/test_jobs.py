@@ -55,7 +55,7 @@ class Upstream:
 
 async def fake_probe(path):
     assert path.read_bytes() == b"test-video-content"
-    return {"width": 1344, "height": 768, "fps": 24, "duration_seconds": 124 / 24}
+    return {"width": 864, "height": 480, "fps": 24, "duration_seconds": 124 / 24}
 
 
 @pytest.fixture
@@ -69,7 +69,8 @@ async def setup(tmp_path):
 
 
 def enqueue(service, prompt="一只鸟飞过湖面", client_id=None):
-    return service.store.submit(client_id or str(uuid4()), prompt, None, service.settings.model_id, 5)
+    return service.store.submit(client_id or str(uuid4()), prompt, None, service.settings.model_id, 5,
+                                generation=service.settings.generation)
 
 
 @pytest.fixture
@@ -103,8 +104,118 @@ async def test_end_to_end_job_uses_native_h3_fields_and_atomic_result(setup):
     assert not list(service.settings.media_dir.glob("*.part"))
     body = json.loads(next(r for r in upstream.requests if r.method == "POST").content)
     assert body["task"] == "t2va"
-    assert body["target"] == {"short_edge": 768, "aspect_ratio": "16:9", "duration_seconds": 5}
+    assert body["target"] == {"short_edge": 480, "aspect_ratio": "16:9", "duration_seconds": 5}
+    assert body["num_inference_steps"] == 5
+    assert body["flow_shift"] == 12 and body["audio_flow_shift"] == 3
+    assert body["quality"] == "lossless"
+    assert "profile" not in body
+    assert result["generation"] == service.settings.generation
     assert "num_frames" not in body and "fps" not in body
+
+
+async def test_health_and_submission_share_configured_profile(api):
+    client, service, upstream = api
+    service.settings = replace(service.settings, short_edge=768, num_inference_steps=4)
+    health = (await client.get("/api/health")).json()
+    response = await client.post("/api/jobs", json={
+        "prompt": "海岸", "seed": 0, "client_request_id": str(uuid4()),
+    })
+    assert response.status_code == 202
+    assert response.json()["generation"] == service.settings.generation
+    await service.tick()
+    body = json.loads(next(r for r in upstream.requests if r.method == "POST").content)
+    assert body["target"] == {key: value for key, value in health["model"].items() if key != "id"}
+    assert body["num_inference_steps"] == 4 and body["seed"] == 0
+
+
+@pytest.mark.parametrize("legacy", [False, True])
+async def test_api_keeps_saved_generation_when_current_profile_changes(api, legacy):
+    client, service, upstream = api
+    body = {"prompt": "历史任务", "client_request_id": str(uuid4())}
+    if legacy:
+        job = service.store.submit(body["client_request_id"], body["prompt"], None,
+                                   service.settings.model_id, 5)
+        original = service.store.public(job)
+    else:
+        original = (await client.post("/api/jobs", json=body)).json()
+    original_target = original["generation"]["target"]
+    service.settings = replace(service.settings,
+                               short_edge=480 if legacy else 768,
+                               num_inference_steps=4)
+    health = (await client.get("/api/health")).json()
+    assert health["model"]["short_edge"] != original_target["short_edge"]
+    restored = await client.get(f'/api/jobs/{original["id"]}')
+    retried = await client.post("/api/jobs", json=body)
+    assert restored.status_code == 200 and retried.status_code == 202
+    for response in (restored, retried):
+        assert response.json()["generation"] == original["generation"]
+        assert response.json()["id"] == original["id"]
+    assert service.store.waiting() == 1 and upstream.posts == 0
+
+
+async def test_queued_profile_survives_restart_and_changed_config_fails_explicitly(setup):
+    service, upstream = setup
+    job = enqueue(service)
+    changed = replace(service.settings, num_inference_steps=4)
+    restarted = Service(changed, client=service.client, probe=fake_probe)
+    await restarted.tick()
+    result = restarted.store.public(restarted.store.get(job["id"]))
+    assert result["generation"]["num_inference_steps"] == 5
+    assert result["error"]["code"] == "generation_profile_changed"
+    assert result["status"] == "failed" and upstream.posts == 0
+
+
+async def test_old_queued_job_preserves_original_profile_without_dispatch(setup):
+    service, upstream = setup
+    job = service.store.submit(str(uuid4()), "旧任务", None, service.settings.model_id, 5)
+    await service.tick()
+    result = service.store.public(service.store.get(job["id"]))
+    assert result["generation"]["target"]["short_edge"] == 768
+    assert result["generation"]["profile"] == "h3-original-fl2va"
+    assert result["error"]["code"] == "generation_profile_changed"
+    assert upstream.posts == 0
+
+
+async def test_running_job_recovers_with_original_snapshot_after_profile_change(setup):
+    service, upstream = setup
+    job = enqueue(service)
+    await service.tick()
+    changed = replace(service.settings, num_inference_steps=4)
+    restarted = Service(changed, client=service.client, probe=fake_probe)
+    restarted.store.recover()
+    await restarted.tick()
+    await restarted.tick()
+    result = restarted.store.public(restarted.store.get(job["id"]))
+    assert result["status"] == "succeeded"
+    assert result["generation"]["num_inference_steps"] == 5
+    assert upstream.posts == 1
+
+
+def test_existing_database_adds_snapshot_column_without_rewriting_old_jobs(tmp_path):
+    database = tmp_path / "jobs.sqlite3"
+    store = Store(database)
+    job = store.submit(str(uuid4()), "历史任务", None, "MiniMaxAI/MiniMax-H3", 5)
+    with store.connection() as db:
+        db.execute("ALTER TABLE jobs DROP COLUMN generation_json")
+    migrated = Store(database)
+    result = migrated.public(migrated.get(job["id"]))
+    assert result["prompt"] == "历史任务"
+    assert result["generation"]["target"]["short_edge"] == 768
+    assert result["status"] == "queued"
+
+
+def test_generation_settings_from_environment(monkeypatch, tmp_path):
+    monkeypatch.setenv("XYZ_DATA_ROOT", str(tmp_path))
+    monkeypatch.setenv("H3_SHORT_EDGE", "480")
+    monkeypatch.setenv("H3_NUM_INFERENCE_STEPS", "4")
+    monkeypatch.setenv("H3_FLOW_SHIFT", "12")
+    monkeypatch.setenv("H3_AUDIO_FLOW_SHIFT", "3")
+    settings = Settings.from_env()
+    assert settings.generation["target"]["short_edge"] == 480
+    assert settings.generation["num_inference_steps"] == 4
+    monkeypatch.setenv("H3_AUDIO_FLOW_SHIFT", "nan")
+    with pytest.raises(ValueError, match="finite"):
+        Settings.from_env()
 
 
 async def test_idempotent_submission_and_conflicting_input(api):

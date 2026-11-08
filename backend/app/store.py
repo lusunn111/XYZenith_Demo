@@ -40,11 +40,16 @@ class Store:
                     error_message TEXT,
                     video_json TEXT,
                     media_expired INTEGER NOT NULL DEFAULT 0,
-                    progress REAL
+                    progress REAL,
+                    generation_json TEXT
                 );
                 CREATE INDEX IF NOT EXISTS jobs_status_created
                 ON jobs(status, created_at);
             """)
+            db.execute("BEGIN IMMEDIATE")
+            columns = {row["name"] for row in db.execute("PRAGMA table_info(jobs)")}
+            if "generation_json" not in columns:
+                db.execute("ALTER TABLE jobs ADD COLUMN generation_json TEXT")
 
     @contextmanager
     def connection(self):
@@ -66,7 +71,7 @@ class Store:
             row = db.execute("SELECT * FROM jobs WHERE client_request_id=?", (client_id,)).fetchone()
             return dict(row) if row else None
 
-    def submit(self, client_id, prompt, seed, model_id, capacity):
+    def submit(self, client_id, prompt, seed, model_id, capacity, generation=None):
         with self.connection() as db:
             db.execute("BEGIN IMMEDIATE")
             existing = db.execute("SELECT * FROM jobs WHERE client_request_id=?", (client_id,)).fetchone()
@@ -79,8 +84,10 @@ class Store:
                 raise QueueFull()
             job_id = str(uuid4())
             db.execute(
-                "INSERT INTO jobs(id,client_request_id,prompt,seed,model_id,status,created_at) VALUES(?,?,?,?,?,'queued',?)",
-                (job_id, client_id, prompt, seed, model_id, time.time()),
+                """INSERT INTO jobs(id,client_request_id,prompt,seed,model_id,status,created_at,generation_json)
+                   VALUES(?,?,?,?,?,'queued',?,?)""",
+                (job_id, client_id, prompt, seed, model_id, time.time(),
+                 json.dumps(generation) if generation is not None else None),
             )
         return self.get(job_id)
 
@@ -138,6 +145,17 @@ class Store:
                 db.execute("""UPDATE jobs SET status='failed',completed_at=?,error_code='submission_failed',
                     error_message='维护者已确认提交失败，可以重新提交。' WHERE id=?""", (time.time(), job_id))
 
+    @staticmethod
+    def generation(job):
+        if job.get("generation_json"):
+            return json.loads(job["generation_json"])
+        # Jobs created before parameter snapshots used the original 768p profile.
+        return {
+            "profile": "h3-original-fl2va",
+            "task": "t2va",
+            "target": {"short_edge": 768, "aspect_ratio": "16:9", "duration_seconds": 5},
+        }
+
     def public(self, job):
         def timestamp(value):
             return datetime.fromtimestamp(value, timezone.utc).isoformat() if value is not None else None
@@ -158,6 +176,7 @@ class Store:
         return {
             "id": job["id"], "status": job["status"], "prompt": job["prompt"],
             "model_id": job["model_id"], "seed": job["seed"],
+            "generation": self.generation(job),
             **{key: timestamp(job[key]) for key in ("created_at", "started_at", "inference_completed_at", "completed_at")},
             "queue_position": queue_position,
             "video_url": f'/media/{job["id"]}.mp4' if available else None,

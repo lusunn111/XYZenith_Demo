@@ -7,12 +7,29 @@ export type JobStatus =
   | "succeeded"
   | "failed";
 
+export interface GenerationTarget {
+  short_edge: number;
+  aspect_ratio: string;
+  duration_seconds: number;
+}
+
+export interface GenerationSpec {
+  profile: string;
+  task: "t2va";
+  target: GenerationTarget;
+  num_inference_steps?: number;
+  flow_shift?: number;
+  audio_flow_shift?: number;
+  quality?: string;
+}
+
 export interface Job {
   id: string;
   status: JobStatus;
   prompt: string;
   model_id: string;
   seed: number | null;
+  generation?: GenerationSpec;
   created_at: string;
   started_at: string | null;
   inference_completed_at: string | null;
@@ -43,12 +60,7 @@ export interface Health {
     detail: string | null;
   };
   queue: { waiting: number; capacity: number };
-  model: {
-    id: string;
-    short_edge: number;
-    aspect_ratio: string;
-    duration_seconds: number;
-  };
+  model: GenerationTarget & { id: string };
   mock: boolean;
 }
 

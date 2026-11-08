@@ -142,9 +142,14 @@ class Service:
             await asyncio.sleep(self.settings.poll_seconds)
 
     async def submit(self, job):
+        generation = self.store.generation(job)
+        if generation != self.settings.generation or job["model_id"] != self.settings.model_id:
+            self.fail(job["id"], "generation_profile_changed",
+                      "任务创建后的推理配置已变更，原参数已保留。请按当前配置新建任务。")
+            return
         body = {
-            "model": self.settings.model_id, "prompt": job["prompt"], "task": "t2va",
-            "target": {"short_edge": 768, "aspect_ratio": "16:9", "duration_seconds": 5},
+            "model": job["model_id"], "prompt": job["prompt"],
+            **{key: value for key, value in generation.items() if key != "profile"},
         }
         if job["seed"] is not None:
             body["seed"] = job["seed"]
