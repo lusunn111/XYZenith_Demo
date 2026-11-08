@@ -24,7 +24,7 @@ npm run dev
 
 ## VPS 发布
 
-VPS 需要 Nginx、Python 3 的 venv 支持和 FFmpeg。网页使用 18080，业务接口使用本机 18000，反向隧道使用本机 13010。先确认这些端口可用。
+VPS 需要 Nginx、Python 3 的 venv 支持和 FFmpeg。公网网页通过标准HTTP端口80访问，18080保留为兼容与诊断入口。业务接口使用本机18000，反向隧道使用本机13010。部署前检查端口和Nginx虚拟主机配置，`deploy/vps/nginx.conf` 的 `server_name` 填写实际VPS公网IP。当前入口为 [XYZenith Demo](http://23.159.248.224/)。
 
 本地构建前端，记录 Git 提交，将该提交的源码及 `frontend/dist` 一起上传到 `/opt/xyzenith/releases/完整提交号`。每个发布目录建立独立 Python 环境。
 
@@ -45,7 +45,7 @@ bash /opt/xyzenith/releases/完整提交号/deploy/vps/install.sh /opt/xyzenith/
 部署后检查网页、后端健康和运行版本。
 
 ```bash
-curl --fail http://127.0.0.1:18080/api/health
+curl --fail -H 'Host: 23.159.248.224' http://127.0.0.1/api/health
 systemctl status xyzenith.service --no-pager
 journalctl -u xyzenith.service -n 80 --no-pager
 readlink /opt/xyzenith/current
