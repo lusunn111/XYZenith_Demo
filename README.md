@@ -9,8 +9,8 @@
 | 位置 | 职责 |
 | --- | --- |
 | 公网 VPS | 前端网页、任务接口、排队与状态、视频访问 |
-| A100 服务器 | SGLang Diffusion 推理服务、模型加载、视频生成 |
-| 组内共享数据盘 | 模型权重、虚拟环境、缓存和生成文件 |
+| A100 服务器 | SGLang Diffusion 推理服务，本地模型、环境及缓存，视频生成 |
+| 组内共享数据盘 | 视频原件及已有模型来源 |
 
 GPU 服务器优先主动建立到 VPS 的反向连接。VPS 将一个完整生成任务交给一个推理实例。首轮使用一组 A100，后续接入其他实例时增加能力登记与健康检查。
 
@@ -26,11 +26,11 @@ GPU 服务器优先主动建立到 VPS 的反向连接。VPS 将一个完整生�
 
 ## 服务器规范
 
-参考既有实验室规范，代码计划放在用户主目录的 `XYZenith_Demo` 项目中，大文件放在 `/data/Zhihao/XYZenith_Demo`。保留现有 `/data/Zhihao` 软链接映射。环境、缓存与模型下载路径按项目设置，运行前检查 GPU 占用，并显式指定设备。
+代码放在用户主目录的 `XYZenith_Demo` 项目中。2026-11-08 用户确认本地缓存方案，模型、环境与缓存进入本地盘 `~/.local/share/xyzenith`，视频原件保留在 `/data/Zhihao/XYZenith_Demo/outputs`。保留现有 `/data/Zhihao` 软链接映射。运行前检查 GPU 占用，并显式指定设备。
 
 2026-11-07，已读取运维聊天和项目规范，并通过 `IF-Lab_` 直连核实两张 A100-PCIE-40GB，卡间拓扑为 NV8。`/data` 为 NFS 共享存储，剩余约 19 TB，可写。A100 到 VPS 的 22 和 443 端口可达，反向隧道仍待认证与转发验证。默认 Python 环境未发现 SGLang，推理部署与模型验证待完成。GPU 占用和可用空间须在部署时重新查询。
 
-首版模型为 MiniMax-H3。开发与发布命令见 [部署说明](docs/deployment.md)，业务接口及故障恢复见 [后端说明](backend/README.md)，推理环境见 [推理说明](inference/README.md)，进度见 [待办清单](TODO.md)。
+首版模型为 MiniMax-H3，当前获批验证配置为 LightX2V 四步 LoRA、480p、约 5 秒，双 A100 加载及生成正在验证。开发与发布命令见 [部署说明](docs/deployment.md)，业务接口及故障恢复见 [后端说明](backend/README.md)，推理环境见 [推理说明](inference/README.md)，进度见 [待办清单](TODO.md)。
 
 ## 验证状态
 

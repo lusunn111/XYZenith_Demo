@@ -2,9 +2,11 @@
 
 ## 当前结论
 
+2026-11-08 复查，本地根卷空闲约 1.6 TiB，共享盘空闲约 19 TiB，两张 A100 40 GB 均空闲，主机可用内存约 69 GiB。用户已确认本地缓存、480p、约 5 秒、LightX2V 四步方案。模型、环境与缓存进入 `~/.local/share/xyzenith`，生成原件进入共享盘 `outputs`。下文的 7.8 GB 空闲及暂停状态属于前一日检查记录，当前部署已恢复。
+
 双 A100 40 GiB 存在通过分阶段加载、流式读取和 CPU 卸载运行原版 H3 的技术路径。本机的 768p、约 5 秒请求尚未完成真实生成，当前缺少与其主机内存及存储条件相匹配的官方成功配置。工程状态记为“候选配置，未验证”。
 
-2026-11-07 用户要求先完成可行性调研，双 A100 路线受限时交付链路，由另一位同学在 L20 资源上验证推理。A100 的模型加载与真实生成已暂停，环境安装状态及停止记录见项目记忆。
+2026-11-07 用户要求先完成可行性调研，双 A100 路线受限时交付链路，由另一位同学在 L20 资源上验证推理。当日暂停 A100 模型加载与真实生成，2026-11-08 按已确认的新配置恢复部署，实测进展见项目记忆。
 
 ## 权重与本机资源
 
@@ -87,12 +89,18 @@ L20 的完整显存规格为 48 GB。部署前收集每台机器卡数、主机�
   "model": "MiniMaxAI/MiniMax-H3",
   "prompt": "A small orange cat walks across a sunlit wooden floor.",
   "task": "t2va",
-  "target": {"short_edge": 768, "aspect_ratio": "16:9", "duration_seconds": 5},
+  "target": {"short_edge": 480, "aspect_ratio": "16:9", "duration_seconds": 5},
+  "num_inference_steps": 5,
+  "flow_shift": 12,
+  "audio_flow_shift": 3,
+  "quality": "lossless",
   "seed": 42
 }
 ```
 
 VPS 网页接口、任务队列和媒体保存已实现。卡数、卸载或量化策略由推理实例负责，VPS 接收统一的任务状态和视频结果。
+
+上述请求采用已确认的 LightX2V v0.1 LoRA，适用于 SGLang v0.5.19。v0.5.23 将 `num_inference_steps` 改为4，两者均执行四次去噪。切换推理节点时同步设置 VPS 的 `H3_NUM_INFERENCE_STEPS`，并复核模型配置文件。
 
 ## 已完成的链路验收
 
