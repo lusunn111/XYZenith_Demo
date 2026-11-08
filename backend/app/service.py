@@ -3,7 +3,6 @@ from contextlib import suppress
 import fcntl
 import json
 import logging
-import math
 from pathlib import Path
 from fractions import Fraction
 import shutil
@@ -201,8 +200,9 @@ class Service:
                                   error_code=None, error_message=None, progress=100)
             else:
                 progress = result.get("progress")
-                if isinstance(progress, (int, float)) and math.isfinite(progress):
-                    progress = max(0, min(100, float(progress)))
+                # SGLang 0.5.19 keeps its initial zero throughout generation.
+                if type(progress) in (int, float) and 0 < progress <= 100:
+                    progress = float(progress)
                 else:
                     progress = None
                 self.store.update(job["id"], progress=progress, error_code=None, error_message=None)

@@ -25,6 +25,7 @@ class Upstream:
         self.posts = 0
         self.downloads = 0
         self.status = "completed"
+        self.progress = 42
         self.post_error = False
         self.missing = False
         self.offline = False
@@ -50,7 +51,7 @@ class Upstream:
                 self.break_download = False
                 return httpx.Response(200, stream=BrokenDownload())
             return httpx.Response(200, content=b"test-video-content", headers={"Content-Type": "video/mp4"})
-        return httpx.Response(200, json={"status": self.status, "progress": 42})
+        return httpx.Response(200, json={"status": self.status, "progress": self.progress})
 
 
 async def fake_probe(path):
@@ -126,6 +127,44 @@ async def test_health_and_submission_share_configured_profile(api):
     body = json.loads(next(r for r in upstream.requests if r.method == "POST").content)
     assert body["target"] == {key: value for key, value in health["model"].items() if key != "id"}
     assert body["num_inference_steps"] == 4 and body["seed"] == 0
+
+
+@pytest.mark.parametrize("progress, expected", [
+    (0, None), (0.0, None), (None, None), (True, None), (False, None),
+    (-1, None), (101, None), ("42", None), (1, 1.0), (42.5, 42.5), (100, 100.0),
+])
+async def test_poll_exposes_only_reported_positive_percentages(api, progress, expected):
+    client, service, upstream = api
+    upstream.status = "queued"
+    upstream.progress = progress
+    job = enqueue(service)
+    await service.tick()
+    # Clear a previously persisted placeholder on the next successful poll.
+    service.store.update(job["id"], progress=0)
+    await service.tick()
+    response = await client.get(f'/api/jobs/{job["id"]}')
+    assert response.status_code == 200
+    result = response.json()
+    assert result["status"] == "running"
+    assert result["progress"] == expected
+    assert result["created_at"] and result["started_at"]
+    assert result["timings"]["queue_seconds"] >= 0
+    assert result["timings"]["total_seconds"] is None
+    assert result["error"] is None
+
+
+async def test_completion_sets_progress_without_upstream_incremental_updates(api):
+    client, service, upstream = api
+    upstream.status = "queued"
+    upstream.progress = 0
+    job = enqueue(service)
+    await service.tick()
+    await service.tick()
+    upstream.status = "completed"
+    await service.tick()
+    result = (await client.get(f'/api/jobs/{job["id"]}')).json()
+    assert result["status"] == "transferring"
+    assert result["progress"] == 100
 
 
 @pytest.mark.parametrize("legacy", [False, True])
