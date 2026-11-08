@@ -28,6 +28,7 @@ exec "$runtime/bin/sglang" serve \
   --tp-size "${XYZ_TP_SIZE:-2}" \
   --ulysses-degree "${XYZ_ULYSSES_DEGREE:-1}" \
   --encoder-parallel auto --performance-mode memory \
+  --attention-backend torch_sdpa \
   --layerwise-offload-components dit,text_encoder,vae \
   --dit-offload-prefetch-size 1 \
   --dit-layerwise-resident-layers "${XYZ_DIT_RESIDENT_LAYERS:-0}" \

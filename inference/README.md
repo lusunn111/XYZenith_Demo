@@ -18,7 +18,9 @@ export XYZ_H3_LORA_PATH="$XYZ_MODEL_ROOT/Minimax-h3-Turbo/minimax_h3_fl2v_turbo_
 python inference/verify-model.py --metadata-only --lora-path "$XYZ_H3_LORA_PATH"
 ```
 
-`install-runtime.sh cu130` 对应优先版本 SGLang 0.5.23，要求驱动与 CUDA 13 环境匹配。`cu129` 对应回退版本 0.5.19，安装器依据上游该版本 Dockerfile 的 CUDA 12 依赖修改，并固定 CUDA 12.9 的 Torch 和扩展 wheel。两者均需完成 GPU 验证。
+`install-runtime.sh cu130` 对应优先版本 SGLang 0.5.23，要求驱动与 CUDA 13 环境匹配。`cu129` 对应回退版本 0.5.19，使用 `requirements-cu129.lock.txt` 固定实测环境，包含上游 Dockerfile 的 CUDA 12 依赖替换。已通过本机双 A100 基础验证，完整生成另行验收。
+
+安装器可读取 `$XYZ_WHEEL_ROOT` 中的三份 CUDA 12 扩展 wheel，默认目录为 `$XYZ_DATA_ROOT/cache/wheels`。缓存文件与网络下载均按官方 SHA256 验证。锁文件通过 `--no-deps` 安装完整依赖列表，以保留 CUDA 12 替换。官方 SGLang wheel 的元数据仍声明 `cuda-python>=13.0`，因此 `uv pip check` 会报告这一已知差异。实际 GPU 验证结果见下文。
 
 已有共享权重可复制到本地项目模型目录，再按固定清单验证。新部署缺少权重时运行下载脚本，基础权重目录为 `$XYZ_MODEL_ROOT/MiniMax-H3`，LoRA 目录为 `$XYZ_MODEL_ROOT/Minimax-h3-Turbo`。服务器无法直接访问 Hugging Face 时，可在当前项目命令中显式设置镜像入口，下载后使用官方清单验证文件。
 
@@ -55,7 +57,9 @@ bash inference/serve.sh
 
 `serve.sh` 使用完整精度、张量并行和逐层卸载候选配置，默认 DiT 常驻层数为 0。`XYZ_NUM_GPUS`、`XYZ_TP_SIZE`、`XYZ_ULYSSES_DEGREE` 分别指定同一服务实例的 GPU 数、张量并行度和序列并行度，默认值为 2、2、1。运行者须显式设置 `CUDA_VISIBLE_DEVICES`，并根据实际同机拓扑选择参数。多机资源需要另行设计实例划分与网络方案。
 
-A100 和 L20 上的真实生成均待验证，`profile_status` 保持 `pending_gpu_validation`。`XYZ_DIT_RESIDENT_LAYERS` 可调整常驻层数，`XYZ_RUNTIME` 可指定经过验证的环境目录。
+首轮 A100 配置显式选择 `torch_sdpa` 精确注意力后端，保持 `quality=lossless`。v0.5.19 默认 FlashAttention 版本选择与 GPU 架构有关，其他后端需要先单独验证兼容性，再测完整生成。
+
+A100 和 L20 上的真实生成均待验证，`profile_status` 保持 `pending_generation_validation`。`XYZ_DIT_RESIDENT_LAYERS` 可调整常驻层数，`XYZ_RUNTIME` 可指定经过验证的环境目录。
 
 启动脚本检查基础权重与 LoRA 尺寸和小文件 Git 摘要，完整 SHA256 校验作为单独验证执行，成功后在项目模型目录写入版本标记。`XYZ_H3_MODEL_PATH` 与 `XYZ_H3_LORA_PATH` 可分别指定基础权重和 LoRA 文件。输出视频保存在 `$XYZ_OUTPUT_ROOT`。
 
@@ -82,6 +86,10 @@ journalctl --user -u xyzenith-inference -f
 可选环境文件为 `~/.config/xyzenith/inference.env`。服务失败重启间隔为 30 秒，五分钟内最多尝试三次。
 
 ## 当前验证记录
+
+2026-11-08，本地隔离环境已安装 SGLang 0.5.19、Torch 2.13.0+cu129、CUDA 12.9、Triton 3.7.1。两张 A100 的 BF16 矩阵运算、Triton 即时编译和 NCCL all-reduce 均通过。视频 API、H3 pipeline 和视频适配模块导入成功。229包的锁文件重放通过。显式 FA4 的 SM80 小张量测试在 CuTe 编译中遇到 `nvvm.fmax` 签名错误，当前启动脚本采用已通过小张量验证的 `torch_sdpa`。
+
+以下为11月7日的历史准备记录。
 
 2026-11-07 已复查双 A100 40 GB、驱动 550.54.14，项目数据目录与 Python 3.12 独立环境已创建。CUDA 12.9 回退依赖安装在 NVIDIA wheel 下载时遇到 TLS 握手失败，安装未完成，尚无通过验收的运行时冻结清单。GPU 运算、即时编译、双卡通信、H3 加载及真实生成均未执行。
 

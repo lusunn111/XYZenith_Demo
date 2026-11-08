@@ -31,8 +31,8 @@
   "sglang_preferred_version": "0.5.23",
   "sglang_fallback_version": "0.5.19",
   "fallback_cuda": "12.9",
-  "profile_status": "pending_gpu_validation",
-  "runtime_status": "installation_incomplete",
-  "gpu_validation_status": "not_run",
+  "profile_status": "pending_generation_validation",
+  "runtime_status": "installed_cu129",
+  "gpu_validation_status": "passed",
   "full_checksum_status": "incomplete"
 }
