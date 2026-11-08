@@ -29,3 +29,5 @@ LoRA固定revision30f485ed874aa44c8183348ad361c5eabad318da，文件1383677888字
 原生首条任务302df026-094b-4acc-a818-7d5f7a72a51c于13时44分26秒失败。文本编码与四步去噪已完成，去噪阶段381.57秒，随后视频VAE的FP16 Conv3d报CUDNN_STATUS_NOT_INITIALIZED。记录保存在共享outputs/smoke-single-a100.json，无对应MP4。动态库审计确认项目CUDA12主库误载系统CUDA13的完整版本名子库，PyPI包只提供主版本名是触发原因。
 
 项目runtime-env.sh为所选环境创建完整版本名别名并绑定全部CUDA库，已接入安装和启动脚本。六组小Conv3d通过，覆盖FP32/FP16/BF16及1/3卷积核，实际加载的cuDNN子库全部来自项目CUDA12环境。软件版本和系统包保持原状，GPU预检新增上述回归。完整生成使用新任务与输出名重新验证，保留首次失败记录。
+
+修复后第一次重启命中LoRA合并缓存，自动锁页预算由冷加载约15GiB增至27GiB，配置卸载阶段触发60GiB cgroup OOM。已停止项目自动重试，两卡显存释放。启动脚本改用官方参数--pin-cpu-memory false，保留文件映射与小型传输暂存槽，继续在相同GPU0和60GiB预算内验证。该次失败记录为logs/cached-load-oom-20261108.log。

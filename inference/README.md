@@ -63,6 +63,8 @@ systemd-run --user --scope -p MemoryMax=60G bash inference/serve.sh
 
 `serve.sh` 使用官方单卡文件映射和逐层卸载配置，默认 DiT 常驻层数为 0。`XYZ_NUM_GPUS`、`XYZ_TP_SIZE`、`XYZ_ULYSSES_DEGREE` 分别指定同一服务实例的 GPU 数、张量并行度和序列并行度，默认值为 1、1、1。运行者须显式设置 `CUDA_VISIBLE_DEVICES`。当前用户服务指定 GPU 0，并通过 `MemoryMax=60G` 限制本项目主机内存。SGLang 已在 CPU 预检中正确识别该限制，并选择文本编码器文件映射。
 
+首轮固定 `--pin-cpu-memory false`，关闭整层权重锁页，文件映射传输仍使用少量暂存槽。实际缓存命中启动时，自动锁页方案选择27GiB锁页权重，触发60GiB进程组上限。该参数用于降低主机常驻内存需求，生成参数保持既定配置。
+
 11月8日用户确认先验证单 A100 官方省内存方案。当前双卡路径存在 LoRA 底权快照与逐层卸载缓冲重复保留的问题，局部修复已通过 CPU 回归，尚未部署。其他节点需依据自身可用内存和 GPU 拓扑设置服务资源参数。详见 [可行性记录](../docs/h3-feasibility-and-handoff.md)。
 
 首轮 A100 配置显式选择 `torch_sdpa` 精确注意力后端，保持 `quality=lossless`。v0.5.19 默认 FlashAttention 版本选择与 GPU 架构有关，其他后端需要先单独验证兼容性，再测完整生成。
