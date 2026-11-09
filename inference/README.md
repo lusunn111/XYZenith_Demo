@@ -8,6 +8,14 @@
 
 在 A100 的 `~/XYZenith_Demo` 执行。经用户确认，模型、隔离环境与缓存使用本地目录 `~/.local/share/xyzenith`，视频输出保留在共享目录 `/data/Zhihao/XYZenith_Demo/outputs`。实际位置由 `deploy/gpu/env.sh` 和部署环境指定。
 
+GPU 节点先准备兼容所选 CUDA 环境的 NVIDIA 驱动、`uv`（Python 包与环境管理器）及 FFmpeg。安装器默认使用 `$HOME/.local/bin/uv`，其他位置可通过 `UV_BIN` 指定可执行文件的绝对路径。推理启动需要在 `PATH` 中找到 `ffmpeg` 和 `ffprobe`，分别负责视频封装和媒体检查。
+
+```bash
+test -x "${UV_BIN:-$HOME/.local/bin/uv}"
+command -v ffmpeg
+command -v ffprobe
+```
+
 ```bash
 bash deploy/gpu/prepare-directories.sh
 source deploy/gpu/env.sh
